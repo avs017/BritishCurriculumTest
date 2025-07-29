@@ -1,0 +1,426 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>British Curriculum Placement Test</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <style>
+        html {
+            display: block;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, Arial, sans-serif;
+            margin: 8px;
+            padding: 8px;
+            background-color: #fff;
+            font-size: 16px;
+            line-height: 1.4;
+            visibility: visible;
+            opacity: 1;
+            display: block;
+            min-height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .test-container, .result-container {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+            display: none;
+        }
+        .question {
+            margin-bottom: 12px;
+        }
+        .question p {
+            font-weight: bold;
+            font-size: 0.95em;
+            margin-bottom: 4px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        input[type="radio"] {
+            margin: 4px 4px 0 0;
+            transform: scale(1.4);
+            vertical-align: middle;
+        }
+        label {
+            display: block;
+            font-size: 0.85em;
+            margin: 3px 0;
+            cursor: pointer;
+        }
+        button {
+            width: 100%;
+            max-width: 180px;
+            margin: 10px auto;
+            padding: 8px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9em;
+            cursor: pointer;
+            display: block;
+            text-align: center;
+            touch-action: manipulation;
+        }
+        button:active {
+            background-color: #0056b3;
+        }
+        .mistake {
+            margin-bottom: 8px;
+            padding: 6px;
+            background-color: #fff3cd;
+            border-left: 3px solid #ffca2c;
+        }
+        @media (max-width: 375px) {
+            body {
+                font-size: 14px;
+                margin: 5px;
+                padding: 5px;
+            }
+            h1 {
+                font-size: 1.1em;
+            }
+            button {
+                max-width: 160px;
+                font-size: 0.85em;
+                padding: 6px;
+            }
+            input[type="text"] {
+                font-size: 0.85em;
+            }
+            input[type="radio"] {
+                transform: scale(1.6);
+            }
+            .question p, .result-container p {
+                font-size: 0.9em;
+            }
+            label {
+                font-size: 0.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>British Curriculum Placement Test</h1>
+    <button id="startTestBtn">Start Test</button>
+    <form id="testForm" class="test-container">
+        <div id="questions"></div>
+        <button type="submit" id="submitBtn">Submit Answers</button>
+    </form>
+    <div id="result" class="result-container">
+        <div id="resultContent"></div>
+        <button id="startAgainBtn">Start Next Random Test Set</button>
+    </div>
+
+    <script>
+        const questionBank = [
+            { id: 'e7_1', subject: 'English', year: 7, type: 'multiple', question: 'What is a metaphor? (Year 7)', options: ["A comparison using 'like'", "A direct comparison without 'like' or 'as'", 'A type of rhyme', 'A repeated sound'], answer: "A direct comparison without 'like' or 'as'", explanation: "A metaphor describes something as being something else without using 'like' or 'as', e.g., 'Time is a thief.'" },
+            { id: 'e7_2', subject: 'English', year: 7, type: 'text', question: 'Write a synonym for "big". (Year 7)', answer: ['large', 'huge', 'enormous', 'vast', 'massive'], explanation: "Synonyms for 'big' include 'large', 'huge', or 'enormous'." },
+            { id: 'e7_3', subject: 'English', year: 7, type: 'multiple', question: 'What is the subject in: "The cat sleeps"? (Year 7)', options: ['The cat', 'Sleeps', 'The', 'None'], answer: 'The cat', explanation: "The subject is the noun performing the action, here 'The cat'." },
+            { id: 'e7_4', subject: 'English', year: 7, type: 'text', question: 'What is a verb? (Year 7)', answer: ['action word', 'verb'], explanation: "A verb describes an action or state, e.g., 'run' or 'is'." },
+            { id: 'e7_5', subject: 'English', year: 7, type: 'multiple', question: 'What is a noun? (Year 7)', options: ['A describing word', 'A naming word', 'An action word', 'A connecting word'], answer: 'A naming word', explanation: "A noun names a person, place, or thing, e.g., 'dog'." },
+            { id: 'e7_6', subject: 'English', year: 7, type: 'text', question: 'Write a synonym for "small". (Year 7)', answer: ['tiny', 'little', 'petite', 'mini'], explanation: "Synonyms for 'small' include 'tiny' or 'little'." },
+            { id: 'e7_7', subject: 'English', year: 7, type: 'multiple', question: 'What is an adverb? (Year 7)', options: ['A naming word', 'A describing word', 'A word modifying a verb', 'A connecting word'], answer: 'A word modifying a verb', explanation: "An adverb modifies a verb, e.g., 'quickly' in 'runs quickly'." },
+            { id: 'e8_1', subject: 'English', year: 8, type: 'multiple', question: "In 'A Christmas Carol', what does Scrooge learn? (Year 8)", options: ['To fight', 'To be generous', 'To travel', 'To cook'], answer: 'To be generous', explanation: "Scrooge learns to be generous and kind." },
+            { id: 'e8_2', subject: 'English', year: 8, type: 'text', question: 'What is the main theme of "Animal Farm"? (Year 8)', answer: ['power', 'corruption', 'equality', 'revolution'], explanation: "The main theme is power and corruption, shown through the pigs’ control." },
+            { id: 'e8_3', subject: 'English', year: 8, type: 'multiple', question: 'What is an adjective? (Year 8)', options: ['A naming word', 'A describing word', 'An action word', 'A connecting word'], answer: 'A describing word', explanation: "An adjective describes a noun, e.g., 'blue sky'." },
+            { id: 'e8_4', subject: 'English', year: 8, type: 'text', question: 'Write a synonym for "angry". (Year 8)', answer: ['furious', 'mad', 'irate', 'annoyed'], explanation: "Synonyms for 'angry' include 'furious' or 'mad'." },
+            { id: 'e8_5', subject: 'English', year: 8, type: 'multiple', question: 'What is personification? (Year 8)', options: ['A type of rhyme', 'Giving human traits to non-human things', 'A comparison using like', 'A repeating sound'], answer: 'Giving human traits to non-human things', explanation: "Personification gives human characteristics to objects, e.g., 'the wind howled'." },
+            { id: 'e8_6', subject: 'English', year: 8, type: 'text', question: 'Write a synonym for "fast". (Year 8)', answer: ['quick', 'swift', 'rapid', 'speedy'], explanation: "Synonyms for 'fast' include 'quick' or 'swift'." },
+            { id: 'e8_7', subject: 'English', year: 8, type: 'multiple', question: 'What is alliteration? (Year 8)', options: ['A comparison', 'Repeating initial sounds', 'A type of poem', 'A character’s speech'], answer: 'Repeating initial sounds', explanation: "Alliteration is the repetition of initial sounds, e.g., 'slippery snake'." },
+            { id: 'e9_1', subject: 'English', year: 9, type: 'text', question: "Write a synonym for 'happy'. (Year 9)", answer: ['joyful', 'cheerful', 'delighted', 'content', 'pleased'], explanation: "Synonyms for 'happy' include 'joyful' or 'cheerful'." },
+            { id: 'e9_2', subject: 'English', year: 9, type: 'multiple', question: "What is the purpose of a soliloquy in a play? (Year 9)", options: ['To introduce characters', 'To reveal a character’s thoughts', 'To end the play', 'To describe the setting'], answer: 'To reveal a character’s thoughts', explanation: "A soliloquy shows a character’s inner thoughts, e.g., Hamlet’s speeches." },
+            { id: 'e9_3', subject: 'English', year: 9, type: 'text', question: 'What is the tone of a formal letter? (Year 9)', answer: ['formal', 'professional', 'polite'], explanation: "A formal letter uses a polite and professional tone." },
+            { id: 'e9_4', subject: 'English', year: 9, type: 'multiple', question: 'What is a simile? (Year 9)', options: ['A direct comparison', 'A comparison using like or as', 'A repeating sound', 'A rhyming word'], answer: 'A comparison using like or as', explanation: "A simile compares using 'like' or 'as', e.g., 'as brave as a lion'." },
+            { id: 'e9_5', subject: 'English', year: 9, type: 'text', question: 'What is the main theme of "Romeo and Juliet"? (Year 9)', answer: ['love', 'tragedy', 'conflict'], explanation: "The main theme is love and tragedy, shown through the lovers’ fate." },
+            { id: 'e9_6', subject: 'English', year: 9, type: 'multiple', question: 'What is dramatic irony? (Year 9)', options: ['When characters argue', 'When the audience knows more than the characters', 'When the play ends sadly', 'When characters use metaphors'], answer: 'When the audience knows more than the characters', explanation: "Dramatic irony occurs when the audience knows something the characters don’t, e.g., in tragedies." },
+            { id: 'm7_1', subject: 'Mathematics', year: 7, type: 'text', question: 'Calculate: 18 + 35 = ? (Year 7)', answer: ['53'], explanation: "Add 18 and 35: 18 + 35 = 53." },
+            { id: 'm7_2', subject: 'Mathematics', year: 7, type: 'multiple', question: 'What is 4 × 7? (Year 7)', options: ['24', '28', '32', '36'], answer: '28', explanation: "Multiply 4 by 7: 4 × 7 = 28." },
+            { id: 'm7_3', subject: 'Mathematics', year: 7, type: 'text', question: 'What is the perimeter of a rectangle with length 5 cm and width 3 cm? (Year 7)', answer: ['16'], explanation: "Perimeter = 2(length + width) = 2(5 + 3) = 16 cm." },
+            { id: 'm7_4', subject: 'Mathematics', year: 7, type: 'text', question: 'What is 1/2 + 1/4? (Year 7)', answer: ['3/4', '0.75'], explanation: "Add fractions: 1/2 + 1/4 = 2/4 + 1/4 = 3/4." },
+            { id: 'm7_5', subject: 'Mathematics', year: 7, type: 'multiple', question: 'What is 25 ÷ 5? (Year 7)', options: ['4', '5', '6', '7'], answer: '5', explanation: "Divide 25 by 5: 25 ÷ 5 = 5." },
+            { id: 'm7_6', subject: 'Mathematics', year: 7, type: 'text', question: 'What is 10% of 50? (Year 7)', answer: ['5'], explanation: "10% of 50 = (10/100) × 50 = 5." },
+            { id: 'm7_7', subject: 'Mathematics', year: 7, type: 'multiple', question: 'What is 3 × 9? (Year 7)', options: ['24', '27', '30', '33'], answer: '27', explanation: "Multiply 3 by 9: 3 × 9 = 27." },
+            { id: 'm8_1', subject: 'Mathematics', year: 8, type: 'text', question: 'Solve for x: 5x - 10 = 15 (Year 8)', answer: ['5'], explanation: "Add 10: 5x = 25, divide by 5: x = 25 ÷ 5 = 5." },
+            { id: 'm8_2', subject: 'Mathematics', year: 8, type: 'multiple', question: 'What is the value of 2³? (Year 8)', options: ['6', '8', '12', '16'], answer: '8', explanation: "2³ = 2 × 2 × 2 = 8." },
+            { id: 'm8_3', subject: 'Mathematics', year: 8, type: 'text', question: 'What is the area of a triangle with base 6 cm and height 4 cm? (Year 8)', answer: ['12'], explanation: "Area = (base × height) ÷ 2 = (6 × 4) ÷ 2 = 12 cm²." },
+            { id: 'm8_4', subject: 'Mathematics', year: 8, type: 'multiple', question: 'What is 3/5 of 20? (Year 8)', options: ['10', '12', '14', '15'], answer: '12', explanation: "Calculate 3/5 × 20 = (3 × 20) ÷ 5 = 12." },
+            { id: 'm8_5', subject: 'Mathematics', year: 8, type: 'text', question: 'Solve for x: 2x + 4 = 10 (Year 8)', answer: ['3'], explanation: "Subtract 4: 2x = 6, divide by 2: x = 3." },
+            { id: 'm8_6', subject: 'Mathematics', year: 8, type: 'multiple', question: 'What is 4²? (Year 8)', options: ['12', '14', '16', '18'], answer: '16', explanation: "4² = 4 × 4 = 16." },
+            { id: 'm8_7', subject: 'Mathematics', year: 8, type: 'text', question: 'What is 20% of 80? (Year 8)', answer: ['16'], explanation: "20% of 80 = (20/100) × 80 = 16." },
+            { id: 'm9_1', subject: 'Mathematics', year: 9, type: 'text', question: 'What is 15% of 60? (Year 9)', answer: ['9'], explanation: "Calculate 15% of 60: (15/100) × 60 = 0.15 × 60 = 9." },
+            { id: 'm9_2', subject: 'Mathematics', year: 9, type: 'multiple', question: 'Solve: 2x + 3 = 11 (Year 9)', options: ['2', '3', '4', '5'], answer: '4', explanation: "Subtract 3: 2x = 8, divide by 2: x = 4." },
+            { id: 'm9_3', subject: 'Mathematics', year: 9, type: 'text', question: 'What is the volume of a cube with side 3 cm? (Year 9)', answer: ['27'], explanation: "Volume = side³ = 3 × 3 × 3 = 27 cm³." },
+            { id: 'm9_4', subject: 'Mathematics', year: 9, type: 'text', question: 'What is the gradient of the line y = 2x + 1? (Year 9)', answer: ['2'], explanation: "The gradient is the coefficient of x in y = mx + c, here 2." },
+            { id: 'm9_5', subject: 'Mathematics', year: 9, type: 'multiple', question: 'What is the circumference of a circle with radius 2 cm? (Year 9)', options: ['4π', '6π', '8π', '12π'], answer: '4π', explanation: "Circumference = 2πr = 2π × 2 = 4π cm." },
+            { id: 'm9_6', subject: 'Mathematics', year: 9, type: 'text', question: 'Solve for x: 3x - 9 = 6 (Year 9)', answer: ['5'], explanation: "Add 9: 3x = 15, divide by 3: x = 5." },
+            { id: 's7_1', subject: 'Science', year: 7, type: 'multiple', question: 'What is the main source of energy for Earth? (Year 7)', options: ['Moon', 'Sun', 'Wind', 'Water'], answer: 'Sun', explanation: "The Sun provides most of Earth’s energy through sunlight." },
+            { id: 's7_2', subject: 'Science', year: 7, type: 'text', question: 'What gas do plants use for photosynthesis? (Year 7)', answer: ['carbon dioxide', 'co2'], explanation: "Plants use carbon dioxide (CO₂) during photosynthesis." },
+            { id: 's7_3', subject: 'Science', year: 7, type: 'multiple', question: 'What is the state of water at 100°C? (Year 7)', options: ['Solid', 'Liquid', 'Gas', 'Plasma'], answer: 'Gas', explanation: "At 100°C, water boils and becomes a gas (steam)." },
+            { id: 's7_4', subject: 'Science', year: 7, type: 'text', question: 'What is a habitat? (Year 7)', answer: ['home', 'environment', 'ecosystem'], explanation: "A habitat is where an organism lives, e.g., a forest." },
+            { id: 's7_5', subject: 'Science', year: 7, type: 'multiple', question: 'What is the unit of length? (Year 7)', options: ['Gram', 'Metre', 'Litre', 'Joule'], answer: 'Metre', explanation: "Length is measured in metres (m)." },
+            { id: 's7_6', subject: 'Science', year: 7, type: 'text', question: 'What gas do humans breathe out? (Year 7)', answer: ['carbon dioxide', 'co2'], explanation: "Humans exhale carbon dioxide (CO₂) during respiration." },
+            { id: 's7_7', subject: 'Science', year: 7, type: 'multiple', question: 'What is a food chain? (Year 7)', options: ['A type of plant', 'A sequence of energy transfer', 'A chemical reaction', 'A weather cycle'], answer: 'A sequence of energy transfer', explanation: "A food chain shows energy transfer between organisms." },
+            { id: 's8_1', subject: 'Science', year: 8, type: 'multiple', question: 'What is a chemical reaction? (Year 8)', options: ['A physical change', 'A process forming new substances', 'A change in state', 'A temperature change'], answer: 'A process forming new substances', explanation: "A chemical reaction forms new substances, e.g., burning wood." },
+            { id: 's8_2', subject: 'Science', year: 8, type: 'text', question: 'What is the pH of a neutral substance? (Year 8)', answer: ['7'], explanation: "A neutral substance has a pH of 7." },
+            { id: 's8_3', subject: 'Science', year: 8, type: 'multiple', question: 'What force causes objects to fall? (Year 8)', options: ['Magnetism', 'Gravity', 'Friction', 'Tension'], answer: 'Gravity', explanation: "Gravity pulls objects toward Earth." },
+            { id: 's8_4', subject: 'Science', year: 8, type: 'text', question: 'What gas is needed for combustion? (Year 8)', answer: ['oxygen', 'o2'], explanation: "Combustion requires oxygen (O₂)." },
+            { id: 's8_5', subject: 'Science', year: 8, type: 'multiple', question: 'What is the boiling point of water? (Year 8)', options: ['0°C', '50°C', '100°C', '150°C'], answer: '100°C', explanation: "Water boils at 100°C at standard pressure." },
+            { id: 's8_6', subject: 'Science', year: 8, type: 'text', question: 'What is the unit of mass? (Year 8)', answer: ['kilogram', 'kg'], explanation: "Mass is measured in kilograms (kg)." },
+            { id: 's8_7', subject: 'Science', year: 8, type: 'multiple', question: 'What is an acid’s pH range? (Year 8)', options: ['0–6', '7', '8–14', 'None'], answer: '0–6', explanation: "Acids have a pH below 7, typically 0–6." },
+            { id: 's9_1', subject: 'Science', year: 9, type: 'text', question: 'Calculate the work done if a 5 N force moves an object 3 m. (Year 9)', answer: ['15'], explanation: "Work = Force × Distance = 5 N × 3 m = 15 Joules." },
+            { id: 's9_2', subject: 'Science', year: 9, type: 'multiple', question: 'What is the unit of electric current? (Year 9)', options: ['Volt', 'Ampere', 'Ohm', 'Watt'], answer: 'Ampere', explanation: "Electric current is measured in amperes (A)." },
+            { id: 's9_3', subject: 'Science', year: 9, type: 'text', question: 'What gas is produced during respiration? (Year 9)', answer: ['carbon dioxide', 'co2'], explanation: "Respiration produces carbon dioxide (CO₂)." },
+            { id: 's9_4', subject: 'Science', year: 9, type: 'multiple', question: 'What is the atomic number of carbon? (Year 9)', options: ['6', '8', '12', '14'], answer: '6', explanation: "Carbon’s atomic number is 6, indicating 6 protons." },
+            { id: 's9_5', subject: 'Science', year: 9, type: 'text', question: 'What is the atomic mass of carbon? (Year 9)', answer: ['12'], explanation: "Carbon’s atomic mass is approximately 12, reflecting 6 protons and 6 neutrons." },
+            { id: 's9_6', subject: 'Science', year: 9, type: 'multiple', question: 'What is the formula for kinetic energy? (Year 9)', options: ['KE = mv²', 'KE = ½mv²', 'KE = mgh', 'KE = Fd'], answer: 'KE = ½mv²', explanation: "Kinetic energy is calculated as KE = ½mv²." }
+        ];
+
+        let currentQuestions = [];
+
+        function getRandomQuestions() {
+            const available = [...questionBank];
+            for (let i = available.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [available[i], available[j]] = [available[j], available[i]];
+            }
+            return available.slice(0, 10);
+        }
+
+        function renderQuestions() {
+            try {
+                const questionsDiv = document.getElementById('questions');
+                const testForm = document.getElementById('testForm');
+                const startTestBtn = document.getElementById('startTestBtn');
+                const result = document.getElementById('result');
+                if (!questionsDiv || !testForm || !startTestBtn || !result) {
+                    console.error('Missing DOM elements');
+                    return;
+                }
+
+                while (questionsDiv.firstChild) {
+                    questionsDiv.removeChild(questionsDiv.firstChild);
+                }
+                currentQuestions = getRandomQuestions();
+                if (currentQuestions.length !== 10) {
+                    console.error('Failed to load 10 questions');
+                    return;
+                }
+
+                currentQuestions.forEach((q, index) => {
+                    const questionDiv = document.createElement('div');
+                    questionDiv.className = 'question';
+                    questionDiv.dataset.index = index; // Add index for reference
+                    const p = document.createElement('p');
+                    p.textContent = `${index + 1}. ${q.question}`;
+                    questionDiv.appendChild(p);
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = `id${index}`;
+                    hiddenInput.value = q.id;
+                    questionDiv.appendChild(hiddenInput);
+                    if (q.type === 'multiple') {
+                        q.options.forEach(opt => {
+                            const label = document.createElement('label');
+                            const radio = document.createElement('input');
+                            radio.type = 'radio';
+                            radio.name = `q${index}`;
+                            radio.value = opt;
+                            radio.dataset.qIndex = index; // Tie to question index
+                            label.appendChild(radio);
+                            label.appendChild(document.createTextNode(opt));
+                            questionDiv.appendChild(label);
+                        });
+                    } else {
+                        const textInput = document.createElement('input');
+                        textInput.type = 'text';
+                        textInput.name = `q${index}`;
+                        textInput.placeholder = 'Enter full answer or number';
+                        textInput.dataset.qIndex = index; // Tie to question index
+                        questionDiv.appendChild(textInput);
+                    }
+                    questionsDiv.appendChild(questionDiv);
+                });
+                testForm.style.display = 'block';
+                startTestBtn.style.display = 'none';
+                result.style.display = 'none';
+            } catch (e) {
+                console.error('Render error:', e);
+            }
+        }
+
+        function submitAnswers(event) {
+            event.preventDefault();
+            try {
+                const testForm = document.getElementById('testForm');
+                const result = document.getElementById('result');
+                const resultContent = document.getElementById('resultContent');
+                const startTestBtn = document.getElementById('startTestBtn');
+                if (!testForm || !result || !resultContent || !startTestBtn) {
+                    console.error('Missing DOM elements in submit');
+                    return;
+                }
+
+                let score = 0;
+                let resultHTML = '<h3>Results</h3>';
+                let mistakes = '';
+                for (let i = 0; i < currentQuestions.length; i++) {
+                    try {
+                        const q = currentQuestions[i];
+                        const radioInputs = document.querySelectorAll(`input[name="q${i}"][type="radio"]`);
+                        const textInput = document.querySelector(`input[name="q${i}"][type="text"]`);
+                        let userAnswer = 'No answer';
+                        if (q.type === 'multiple') {
+                            const selectedRadio = Array.from(radioInputs).find(r => r.checked);
+                            userAnswer = selectedRadio ? selectedRadio.value.trim() : userAnswer;
+                        } else if (textInput) {
+                            userAnswer = textInput.value.trim();
+                        }
+                        if (q) {
+                            let isCorrect = false;
+                            const normalizedUserAnswer = userAnswer.toLowerCase().replace(/\s+/g, ' ');
+                            if (q.type === 'multiple') {
+                                isCorrect = q.answer.toLowerCase() === normalizedUserAnswer;
+                            } else { // text type
+                                isCorrect = Array.isArray(q.answer) && q.answer.some(ans => {
+                                    const normalizedAnswer = ans.toLowerCase().replace(/\s+/g, ' ');
+                                    if (!isNaN(normalizedUserAnswer) && !isNaN(normalizedAnswer)) {
+                                        return Math.abs(parseFloat(normalizedUserAnswer) - parseFloat(normalizedAnswer)) < 0.01;
+                                    }
+                                    return normalizedAnswer === normalizedUserAnswer;
+                                });
+                            }
+                            if (isCorrect) {
+                                score++;
+                            } else {
+                                const correctAnswer = Array.isArray(q.answer) ? q.answer[0] : q.answer;
+                                mistakes += `<div class="mistake"><p><strong>Question:</strong> ${q.question}</p><p><strong>Your Answer:</strong> ${userAnswer}</p><p><strong>Correct Answer:</strong> ${correctAnswer}</p><p><strong>Explanation:</strong> ${q.explanation}</p></div>`;
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`Error processing question ${i}:`, e);
+                        continue;
+                    }
+                }
+                const year = score <= 3 ? "Below Year 7 (needs foundational support)" :
+                             score <= 5 ? "Year 7" :
+                             score <= 7 ? "Year 8" : "Year 9 or above";
+                resultHTML += `<p>Score: ${score}/10</p><p>Recommended Academic Year: ${year}</p>`;
+                if (mistakes) {
+                    resultHTML += '<h3>Mistakes</h3>' + mistakes;
+                } else {
+                    resultHTML += '<p>No mistakes! Well done!</p>';
+                }
+                resultContent.innerHTML = resultHTML;
+                testForm.style.display = 'none';
+                result.style.display = 'block';
+                startTestBtn.style.display = 'none';
+            } catch (e) {
+                console.error('Submit error:', e);
+            }
+        }
+
+        function startAgain() {
+            try {
+                const testForm = document.getElementById('testForm');
+                const result = document.getElementById('result');
+                const startTestBtn = document.getElementById('startTestBtn');
+                if (!testForm || !result || !startTestBtn) {
+                    console.error('Missing DOM elements in startAgain');
+                    return;
+                }
+
+                const questionsDiv = document.getElementById('questions');
+                while (questionsDiv.firstChild) {
+                    questionsDiv.removeChild(questionsDiv.firstChild);
+                }
+                const inputs = testForm.getElementsByTagName('input');
+                for (let i = inputs.length - 1; i >= 0; i--) {
+                    inputs[i].parentNode.removeChild(inputs[i]);
+                }
+                renderQuestions();
+                testForm.style.display = 'block';
+                result.style.display = 'none';
+                startTestBtn.style.display = 'none';
+            } catch (e) {
+                console.error('StartAgain error:', e);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const startTestBtn = document.getElementById('startTestBtn');
+            const testForm = document.getElementById('testForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const startAgainBtn = document.getElementById('startAgainBtn');
+            if (startTestBtn && testForm && submitBtn && startAgainBtn) {
+                startTestBtn.style.display = 'block';
+                testForm.style.display = 'none';
+                startTestBtn.addEventListener('click', renderQuestions);
+                testForm.addEventListener('submit', submitAnswers);
+                startAgainBtn.addEventListener('click', startAgain);
+            } else {
+                console.error('DOM elements not found');
+            }
+        });
+    </script>
+</body>
+</html>
